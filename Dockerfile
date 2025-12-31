@@ -22,8 +22,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code (includes start.sh)
 COPY . .
 
-# Make startup script executable
-RUN chmod +x /app/start.sh
+# Make startup script executable (verify it exists first)
+RUN if [ ! -f /app/start.sh ]; then echo "ERROR: start.sh not found!" && exit 1; fi && \
+    chmod +x /app/start.sh && \
+    ls -la /app/start.sh
 
 # Expose port
 EXPOSE 8000

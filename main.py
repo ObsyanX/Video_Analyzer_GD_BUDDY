@@ -19,7 +19,7 @@ from PIL import Image
 import time
 
 from production_ready_analyzer import ProductionBehaviorAnalyzer, ProductionConfig
-from api_keys import get_key_manager, APIKeyManager
+from api_keys import get_key_manager, ProductionAPIKeyManager
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -142,39 +142,18 @@ async def health_check():
     }
 
 
-@app.post("/api-key/generate")
-async def generate_api_key(
-    name: str = "default",
-    expires_days: Optional[int] = None
-):
+@app.get("/api-key/status")
+async def get_api_key_status():
     """
-    Generate a new API key.
-    
-    Note: In production, this should be protected with admin authentication.
-    For now, it's open but should be secured in production deployments.
+    Get API key configuration status (no authentication required).
+    Useful for debugging deployment issues.
     """
-    try:
-        api_key = key_manager.generate_key(name=name, expires_days=expires_days)
-        return {
-            "success": True,
-            "api_key": api_key,
-            "message": "Save this API key securely. It will not be shown again.",
-            "name": name,
-            "expires_days": expires_days
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating API key: {str(e)}")
-
-
-@app.get("/api-key/info")
-async def get_api_key_info(api_key: str = Depends(verify_api_key)):
-    """Get information about the current API key."""
-    key_info = key_manager.get_key_info(api_key)
-    if key_info:
-        # Don't expose the full key
-        key_info["key_prefix"] = api_key[:20] + "..."
-        return key_info
-    raise HTTPException(status_code=404, detail="API key not found")
+    return {
+        "keys_configured": key_manager.has_valid_keys(),
+        "key_count": key_manager.get_key_count(),
+        "primary_key_set": key_manager.get_primary_key() is not None,
+        "message": "API keys are loaded from environment variables" if key_manager.has_valid_keys() else "No API keys configured in environment"
+    }
 
 
 @app.post("/analyze/frame", response_model=FrameAnalysisResponse)

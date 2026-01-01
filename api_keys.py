@@ -1,164 +1,76 @@
 #!/usr/bin/env python3
 """
-API Key Management System
+Production API Key Management System
 
-Generates and manages API keys for authentication.
+Environment variable-based API key validation for production deployments.
+No file-based storage to avoid restart issues on free hosting platforms.
 """
 
-import secrets
-import json
 import os
-from pathlib import Path
-from typing import List, Dict, Optional
-from datetime import datetime, timedelta
+from typing import Optional
 
 
-class APIKeyManager:
-    """Manages API keys for authentication."""
+class ProductionAPIKeyManager:
+    """
+    Production-ready API key manager using environment variables.
     
-    def __init__(self, keys_file: str = "api_keys.json"):
-        self.keys_file = Path(keys_file)
-        self.keys = self._load_keys()
+    This solves the restart problem on free hosting platforms where
+    file-based storage gets reset on every restart.
+    """
     
-    def _load_keys(self) -> Dict:
-        """Load API keys from file."""
-        if self.keys_file.exists():
-            try:
-                with open(self.keys_file, 'r') as f:
-                    return json.load(f)
-            except Exception:
-                return {}
-        return {}
-    
-    def _save_keys(self):
-        """Save API keys to file."""
-        try:
-            with open(self.keys_file, 'w') as f:
-                json.dump(self.keys, f, indent=2)
-        except Exception as e:
-            print(f"Error saving API keys: {e}")
-    
-    def generate_key(self, name: str = "default", expires_days: Optional[int] = None) -> str:
-        """
-        Generate a new API key.
+    def __init__(self):
+        """Initialize with environment variable API key."""
+        # Primary API key from environment
+        self.primary_key = os.environ.get("VIDEO_ANALYZER_API_KEY")
         
-        Args:
-            name: Name/identifier for the key
-            expires_days: Number of days until expiration (None = never expires)
+        # Fallback keys for backward compatibility (comma-separated)
+        fallback_keys = os.environ.get("FALLBACK_API_KEYS", "")
+        self.fallback_keys = [key.strip() for key in fallback_keys.split(",") if key.strip()]
         
-        Returns:
-            The generated API key
-        """
-        # Generate a secure random key
-        api_key = f"vb_analysis_{secrets.token_urlsafe(32)}"
+        # Valid keys list
+        self.valid_keys = []
+        if self.primary_key:
+            self.valid_keys.append(self.primary_key)
+        self.valid_keys.extend(self.fallback_keys)
         
-        # Create key metadata
-        key_data = {
-            "name": name,
-            "created": datetime.now().isoformat(),
-            "active": True,
-            "usage_count": 0,
-            "last_used": None
-        }
-        
-        if expires_days:
-            key_data["expires"] = (datetime.now() + timedelta(days=expires_days)).isoformat()
-        else:
-            key_data["expires"] = None
-        
-        # Store key
-        self.keys[api_key] = key_data
-        self._save_keys()
-        
-        return api_key
+        print(f"API Key Manager initialized with {len(self.valid_keys)} valid keys")
     
     def validate_key(self, api_key: str) -> bool:
         """
-        Validate an API key.
+        Validate an API key against environment variables.
         
         Args:
             api_key: The API key to validate
         
         Returns:
-            True if key is valid and active, False otherwise
+            True if key is valid, False otherwise
         """
-        if api_key not in self.keys:
+        if not api_key:
             return False
         
-        key_data = self.keys[api_key]
-        
-        # Check if key is active
-        if not key_data.get("active", False):
-            return False
-        
-        # Check expiration
-        expires = key_data.get("expires")
-        if expires:
-            try:
-                expires_date = datetime.fromisoformat(expires)
-                if datetime.now() > expires_date:
-                    return False
-            except Exception:
-                pass
-        
-        # Update usage stats
-        key_data["usage_count"] = key_data.get("usage_count", 0) + 1
-        key_data["last_used"] = datetime.now().isoformat()
-        self._save_keys()
-        
-        return True
+        # Check against all valid keys
+        return api_key in self.valid_keys
     
-    def revoke_key(self, api_key: str) -> bool:
-        """Revoke an API key."""
-        if api_key in self.keys:
-            self.keys[api_key]["active"] = False
-            self._save_keys()
-            return True
-        return False
+    def get_primary_key(self) -> Optional[str]:
+        """Get the primary API key (for testing/info purposes)."""
+        return self.primary_key
     
-    def list_keys(self) -> List[Dict]:
-        """List all API keys (without showing the actual keys)."""
-        result = []
-        for key, data in self.keys.items():
-            result.append({
-                "key_prefix": key[:20] + "...",
-                "name": data.get("name", "unknown"),
-                "created": data.get("created"),
-                "active": data.get("active", False),
-                "usage_count": data.get("usage_count", 0),
-                "last_used": data.get("last_used"),
-                "expires": data.get("expires")
-            })
-        return result
+    def has_valid_keys(self) -> bool:
+        """Check if any valid keys are configured."""
+        return len(self.valid_keys) > 0
     
-    def get_key_info(self, api_key: str) -> Optional[Dict]:
-        """Get information about a specific API key."""
-        if api_key in self.keys:
-            data = self.keys[api_key].copy()
-            return data
-        return None
+    def get_key_count(self) -> int:
+        """Get number of configured keys."""
+        return len(self.valid_keys)
 
 
 # Global instance
 _key_manager = None
 
-def get_key_manager() -> APIKeyManager:
+def get_key_manager() -> ProductionAPIKeyManager:
     """Get the global API key manager instance."""
     global _key_manager
     if _key_manager is None:
-        _key_manager = APIKeyManager()
+        _key_manager = ProductionAPIKeyManager()
     return _key_manager
-
-
-if __name__ == "__main__":
-    # Generate a default API key
-    manager = APIKeyManager()
-    api_key = manager.generate_key(name="default_key", expires_days=None)
-    print("=" * 70)
-    print("API KEY GENERATED")
-    print("=" * 70)
-    print(f"\nAPI Key: {api_key}")
-    print(f"\nSave this key securely. It will be required for API access.")
-    print(f"\nKeys file: {manager.keys_file}")
-    print("=" * 70)
 

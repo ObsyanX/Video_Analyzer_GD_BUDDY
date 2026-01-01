@@ -46,10 +46,19 @@ class ProductionAPIKeyManager:
             True if key is valid, False otherwise
         """
         if not api_key:
+            print(f"[API Key] No API key provided")
             return False
         
+        # Debug logging
+        print(f"[API Key] Validating key: {api_key[:20]}...")
+        print(f"[API Key] Valid keys count: {len(self.valid_keys)}")
+        if self.valid_keys:
+            print(f"[API Key] First valid key: {self.valid_keys[0][:20]}...")
+        
         # Check against all valid keys
-        return api_key in self.valid_keys
+        is_valid = api_key in self.valid_keys
+        print(f"[API Key] Validation result: {is_valid}")
+        return is_valid
     
     def get_primary_key(self) -> Optional[str]:
         """Get the primary API key (for testing/info purposes)."""

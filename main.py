@@ -152,6 +152,7 @@ async def get_api_key_status():
         "keys_configured": key_manager.has_valid_keys(),
         "key_count": key_manager.get_key_count(),
         "primary_key_set": key_manager.get_primary_key() is not None,
+        "primary_key_prefix": key_manager.get_primary_key()[:20] + "..." if key_manager.get_primary_key() else None,
         "message": "API keys are loaded from environment variables" if key_manager.has_valid_keys() else "No API keys configured in environment"
     }
 
